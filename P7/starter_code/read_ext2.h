@@ -54,10 +54,10 @@ void read_reg(int fd, int id, struct ext2_inode *inode, char* buffer, char* path
 
 /* read an inode with specified inode number and group number */
 void read_inode( int                           fd,        /* the disk image file descriptor */
-				 int                      ngroup,        /* which block group to access */
 				 off_t 						   offset,    /* offset to the start of the inode table */
 				 int                           inode_no,  /* the inode number to read  */
-				 struct ext2_inode            *inode   /* where to put the inode */
+		 struct ext2_inode            *inode      /* where to put the inode */,
+		 __u16 s_inode_size
 				 ); 
 
 #endif

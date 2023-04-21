@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <string.h>
 #include "read_ext2.h"
 
 /* implementations credit to
@@ -15,165 +14,10 @@ unsigned int num_groups = 0;
 unsigned int inodes_per_group = 0;
 
 
-int debug = 0;          //turn on/off debug prints
-
-//void read_dir(int fd, struct ext2_inode *inode, struct ext2_dir_entry_2 *dir)
-void read_dir(int fd, struct ext2_inode *inode, char * buffer, map* inodemap)
-{
-		//printf("%ld\n", sizeof(inodemap));		
-		lseek(fd, BLOCK_OFFSET(inode->i_block[0]), SEEK_SET);
-		read(fd, buffer, 1024);
-
-		uint offset = 0;
-		while(offset < inode->i_size) {
-			struct ext2_dir_entry_2 * dentry;
-			dentry = (struct ext2_dir_entry_2*) & ( buffer[offset] );
-
-			if (dentry->rec_len == 0 || dentry->name_len == 0){
-				break;
-			}
-
-			int name_len = dentry->name_len & 0xFF; // convert 2 bytes to 4 bytes properly
-
-			char name [EXT2_NAME_LEN];
-			strncpy(name, dentry->name, name_len);
-			name[name_len] = '\0';
-
-			strcpy(inodemap[dentry->inode].name, name);
-			//printf("%s\n", inodemap[dentry->inode].name);
-			
-			offset += 8 + dentry->name_len;
-			offset = ((offset + 4 - 1) / 4) * 4;
-
-		}
-
-}
-
-
-
-void read_reg(int fd, int id, struct ext2_inode *inode, char *buffer, char *path, map* inodemap)
-{
-//	printf("Path: %s\n", path);
-	
-	lseek(fd, BLOCK_OFFSET(inode->i_block[0]), SEEK_SET);
-	read(fd, buffer, 1024);
-//	printf("Parsing inode: %d\n", id); 
-
-	int is_jpg = 0;
-	if (buffer[0] == (char)0xff &&
-		buffer[1] == (char)0xd8 &&
-		buffer[2] == (char)0xff &&
-		(buffer[3] == (char)0xe0 ||
-		buffer[3] == (char)0xe1 ||
-		buffer[3] == (char)0xe8)) {
-		is_jpg = 1;
-	}
-
-	if (is_jpg == 0) {
-		return;
-	}
-	int blocks_left = inode->i_size / 1024;
-	int bytesLeft = inode->i_size;
-	int bytesToWrite = 1024;
-
-	//printf("Bytes to read: %d\n", bytesLeft);
-	//make sure string length isnt a source of error.
-	char buff[512];
-	char actual[512];
-	sprintf(buff, "%s/file-%d.jpg", path, id);
-	sprintf(actual, "%s/%s", path, inodemap[id].name);
-
-	int filedesc = open(buff, O_CREAT | O_WRONLY,  0666);
-	int otherFile = open(actual, O_CREAT | O_WRONLY,  0666);
-
-	if (bytesLeft < bytesToWrite){
-		bytesToWrite = bytesLeft;
-	}
-
-	write(filedesc, buffer, bytesToWrite);
-	write(otherFile, buffer, bytesToWrite);
-	blocks_left -= 1;
-	bytesLeft -= bytesToWrite;
-	if (blocks_left <= 0 && bytesToWrite <= 0) {
-		close(filedesc);
-		close(otherFile);
-		return;
-	}
-
-	// direct
-	for (int i = 1; i < 12; i++){
-		lseek(fd, BLOCK_OFFSET(inode->i_block[i]), SEEK_SET);
-		if (bytesLeft < bytesToWrite){
-			bytesToWrite = bytesLeft;
-		}
-		read(fd, buffer, bytesToWrite);
-		write(filedesc, buffer, bytesToWrite);
-		write(otherFile, buffer, bytesToWrite);
-		blocks_left -= 1;
-		bytesLeft -= bytesToWrite;
-		if (blocks_left <= 0 && bytesToWrite <= 0) {
-            close(filedesc);
-            close(otherFile);
-            return;
-        }
-	}
-
-
-	// single
-	lseek(fd, BLOCK_OFFSET(inode->i_block[12]), SEEK_SET);
-	uint temp[256];
-	read(fd, temp, 1024);
-	for (int i = 0; i < 256; i++){
-		lseek(fd, BLOCK_OFFSET(temp[i]), SEEK_SET);
-		if (bytesLeft < bytesToWrite){
-			bytesToWrite = bytesLeft;
-		}
-		read(fd, buffer, bytesToWrite);
-		write(filedesc, buffer, bytesToWrite);
-		write(otherFile, buffer, bytesToWrite);
-		blocks_left -= 1;
-		bytesLeft -= bytesToWrite;
-        if (blocks_left <= 0 && bytesToWrite <= 0) {
-            close(filedesc);
-            close(otherFile);
-            return;
-        }
-	}
-
-	// double
-	lseek(fd, BLOCK_OFFSET(inode->i_block[13]), SEEK_SET);
-	uint temp2[256];
-	read(fd, temp2, 1024);
-	for (int i = 0; i < 256; i++){
-		lseek(fd, BLOCK_OFFSET(temp2[i]), SEEK_SET);
-		uint temp3[256];
-		read(fd, temp3, 1024);
-		for (int i = 0; i < 256; i++){
-			lseek(fd, BLOCK_OFFSET(temp3[i]), SEEK_SET);
-			if (bytesLeft < bytesToWrite){
-				bytesToWrite = bytesLeft;
-			}
-			read(fd, buffer, bytesToWrite);
-			write(filedesc, buffer, bytesToWrite);
-			write(otherFile, buffer, bytesToWrite);
-			blocks_left -= 1;
-			bytesLeft -= bytesToWrite;
-			if (blocks_left <= 0 && bytesToWrite <= 0) {
-				close(filedesc);
-				close(otherFile);
-				return;
-			}
-		}
-	}
-
-	close(filedesc);
-	close(otherFile);
-	return;
-}
-
+int debug = 1;          //turn on/off debug prints
 
 /* read the first super block to initialize common variables */
-void ext2_read_init( int                      fd)
+void ext2_read_init(int fd)
 {
 	struct ext2_super_block super;
 	lseek(fd, BASE_OFFSET, SEEK_SET);        /* position head above super-block */
@@ -191,7 +35,7 @@ void ext2_read_init( int                      fd)
 		num_groups = (super.s_blocks_count + blocks_per_group - 1) / blocks_per_group;
 		inodes_per_group = super.s_inodes_per_group;
 
-		
+
 		if (debug)
 		{
 			printf("Reading first super-block from device: \n"
@@ -207,8 +51,8 @@ void ext2_read_init( int                      fd)
 				   blocks_per_group,
 				   num_groups);
 		}
-		
-		
+
+
 }
 
 int isPowerOf(int m, int n) 
@@ -264,8 +108,8 @@ int read_super_block( int                      fd,        /* the disk image file
 		num_no_super_copy_blocks+=powersBelow(ngroup,3);
 		num_no_super_copy_blocks+=powersBelow(ngroup,5);
 		num_no_super_copy_blocks+=powersBelow(ngroup,7);*/
-    
-	
+
+
 	    lseek(fd, BASE_OFFSET + BLOCK_OFFSET(blocks_per_group * ngroup), SEEK_SET);        /* position head above super-block */
         read(fd, super, sizeof(struct ext2_super_block));              /* read super-block */
 
@@ -275,7 +119,7 @@ int read_super_block( int                      fd,        /* the disk image file
         }
 
         block_size = 1024 << super->s_log_block_size;
-		
+
 		if (debug)
 		{
 			printf("Reading super-block from device: \n"
@@ -299,11 +143,11 @@ int read_super_block( int                      fd,        /* the disk image file
 				   super->s_first_ino,          /* first non-reserved inode */
 				   super->s_inode_size);
 		}
-		
-		
+
+
 		inodes_per_block = block_size / sizeof(struct ext2_inode);		/* number of inodes per block */
 		itable_blocks = super->s_inodes_per_group / inodes_per_block;		/* size in blocks of the inode table */
-		
+
 		return 0;
 }
 
@@ -361,14 +205,9 @@ off_t locate_data_blocks( int ngroup, const struct ext2_group_desc *group      /
 		return BLOCK_OFFSET(group->bg_inode_table + itable_blocks + blocks_per_group * ngroup);
 }
 
-void read_inode(fd, ngroup, offset, inode_no, inode)
-     int                            fd;        /* the floppy disk file descriptor */
-	 int 							ngroup;
-     off_t 			   				offset;    /* offset to the start of the inode table */
-     int                            inode_no;  /* the inode number to read  */
-     struct ext2_inode             *inode;     /* where to put the inode */
+void read_inode(int fd, off_t offset, int inode_no, struct ext2_inode *inode, __u16 s_inode_size)
 {
-        lseek(fd, BLOCK_OFFSET(blocks_per_group * ngroup) + offset + (inode_no-1)*sizeof(struct ext2_inode), SEEK_SET);
+        lseek(fd, offset + (inode_no-1)*s_inode_size, SEEK_SET);
         read(fd, inode, sizeof(struct ext2_inode));
 }
 
