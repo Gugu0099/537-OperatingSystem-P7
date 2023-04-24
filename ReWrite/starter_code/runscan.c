@@ -158,7 +158,6 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
         {
        //     uint32_t current_inode_number = starting_inode_number + i;
             read_inode(fd, inode_table_offset, i, &dir_inode, super->s_inode_size);
-
             if (S_ISDIR(dir_inode.i_mode))
             {
                 for (uint32_t block_idx = 0; block_idx < EXT2_NDIR_BLOCKS && !found; block_idx++)
@@ -266,7 +265,7 @@ int main(int argc, char **argv)
                     // find_file_name(fd, &super, &group, current_inode_number, temp_name);
                     // printf("This is the file name: %s\n", temp_name);
                     snprintf(output_path, sizeof(output_path), "%s/file-%u.jpg", argv[2], current_inode_number);
-                    printf("This is the file name: %s\n", output_path);
+                    // printf("This is the file name: %s\n", output_path);
                     char file_name[EXT2_NAME_LEN + 1];
                     find_file_name(fd, &super, &group, current_inode_number, file_name);
 
@@ -275,8 +274,14 @@ int main(int argc, char **argv)
                     printf("This is the file name: %s\n", output_path2);
 
                     FILE *output_file = fopen(output_path, "w");
+                    FILE *output_file2 = fopen(output_path2, "w");
 
                     if (!output_file)
+                    {
+                        perror("fopen");
+                        exit(1);
+                    }
+                    if (!output_file2)
                     {
                         perror("fopen");
                         exit(1);
@@ -306,6 +311,7 @@ int main(int argc, char **argv)
                         lseek(fd, offset, SEEK_SET);
                         read(fd, buffer, bytes_to_read);
                         fwrite(buffer, 1, bytes_to_read, output_file);
+                        fwrite(buffer, 1, bytes_to_read, output_file2);
                         bytes_left = bytes_left - bytes_to_read;
                     }
 
