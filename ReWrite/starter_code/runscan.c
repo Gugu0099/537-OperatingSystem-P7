@@ -274,14 +274,8 @@ int main(int argc, char **argv)
                     printf("This is the file name: %s\n", output_path2);
 
                     FILE *output_file = fopen(output_path, "w");
-                    FILE *output_file2 = fopen(output_path2, "w");
 
                     if (!output_file)
-                    {
-                        perror("fopen");
-                        exit(1);
-                    }
-                    if (!output_file2)
                     {
                         perror("fopen");
                         exit(1);
@@ -311,7 +305,6 @@ int main(int argc, char **argv)
                         lseek(fd, offset, SEEK_SET);
                         read(fd, buffer, bytes_to_read);
                         fwrite(buffer, 1, bytes_to_read, output_file);
-                        fwrite(buffer, 1, bytes_to_read, output_file2);
                         bytes_left = bytes_left - bytes_to_read;
                     }
 
