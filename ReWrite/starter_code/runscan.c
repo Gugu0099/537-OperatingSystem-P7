@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #define INDIRECT_BLOCK_COUNT (block_size / sizeof(uint32_t)) // 256
 
@@ -192,7 +193,6 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
             }
         }
     }
-
     return found;
 }
 
@@ -468,6 +468,16 @@ int main(int argc, char **argv)
                     }
                     fclose(paste);
                     fclose(copy);
+
+                    char details[256];
+                    snprintf(details, sizeof(details), "%s/file-%u-details.txt", argv[2], current_inode_number);
+                    printf("This is what we get: %s", details);
+                    FILE *something = fopen(details, "wb");
+                    fprintf(something, "%u\n%lu\n%u", inode.i_links_count, (unsigned long)inode.i_size, inode.i_uid);
+                    fclose(something);
+                    
+                    
+
                 }
             }
         }
