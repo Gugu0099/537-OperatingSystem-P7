@@ -127,17 +127,17 @@ void process_directory_blocks(int fd, uint32_t block_number, uint32_t block_size
                 *found = 1;
                 break;
             }
-            
-// offset =  8 + name length
-// if offset % 4 != 0:
-//      offset+ 4-(offset%4)
-            
+
+            // offset =  8 + name length
+            // if offset % 4 != 0:
+            //      offset+ 4-(offset%4)
+
             off_t off = 8 + entry->name_len;
-            if(off % 4 != 0){
+            if (off % 4 != 0)
+            {
                 off = off + 4 - (off % 4);
             }
             entry = (struct ext2_dir_entry_2 *)((char *)entry + off);
-
         }
     }
     else
@@ -154,7 +154,6 @@ void process_directory_blocks(int fd, uint32_t block_number, uint32_t block_size
     }
 }
 
-
 int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_desc *group, uint32_t inode_number, char *file_name)
 {
     uint32_t i_p_g = super->s_inodes_per_group;
@@ -165,7 +164,6 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
 
     uint32_t num_groups = (super->s_blocks_count + super->s_blocks_per_group - 1) / super->s_blocks_per_group;
 
-
     for (uint32_t j = 0; j < num_groups && !found; j++)
     {
         off_t inode_table_offset = locate_inode_table(j, group);
@@ -173,14 +171,14 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
 
         for (uint32_t i = 1; i < i_p_g && !found; i++)
         {
-       //     uint32_t current_inode_number = starting_inode_number + i;
+            //     uint32_t current_inode_number = starting_inode_number + i;
             read_inode(fd, inode_table_offset, i, &dir_inode, super->s_inode_size);
             if (S_ISDIR(dir_inode.i_mode))
             {
-               // for (uint32_t block_idx = 0; block_idx < EXT2_NDIR_BLOCKS && !found; block_idx++)
+                // for (uint32_t block_idx = 0; block_idx < EXT2_NDIR_BLOCKS && !found; block_idx++)
                 // {
-                    process_directory_blocks(fd, dir_inode.i_block[0], block_size, inode_number, file_name, &found, 0);
-               // }
+                process_directory_blocks(fd, dir_inode.i_block[0], block_size, inode_number, file_name, &found, 0);
+                // }
 
                 // Read indirect blocks
                 // for (int indirect_level = 1; indirect_level <= 3 && !found; indirect_level++)
@@ -197,9 +195,6 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
 
     return found;
 }
-
-
-
 
 int checkJPG(char *buffer)
 {
@@ -294,8 +289,6 @@ int main(int argc, char **argv)
                     printf("This is the file name: %s\n", output_path2);
 
                     FILE *output_file = fopen(output_path, "w");
-                  //  FILE *output_file2 = fopen(output_path2, "w");
-                    
 
                     if (!output_file)
                     {
@@ -333,7 +326,7 @@ int main(int argc, char **argv)
                         lseek(fd, offset, SEEK_SET);
                         read(fd, buffer, bytes_to_read);
                         fwrite(buffer, 1, bytes_to_read, output_file);
-                       // fwrite(buffer, 1, bytes_to_read, output_file2);
+                        // fwrite(buffer, 1, bytes_to_read, output_file2);
                         bytes_left = bytes_left - bytes_to_read;
                     }
 
@@ -344,10 +337,10 @@ int main(int argc, char **argv)
                         if (inode.i_block[block_idx] != 0)
                         {
                             read_indirect_blocks(fd, inode.i_block[block_idx], buffer, output_file, block_size, &bytes_left, indirect_level);
-                       //     read_indirect_blocks(fd, inode.i_block[block_idx], buffer, output_file2, block_size, &bytes_left, indirect_level);
+                            //     read_indirect_blocks(fd, inode.i_block[block_idx], buffer, output_file2, block_size, &bytes_left, indirect_level);
                         }
                     }
-                    
+
                     /*
                          if (argc != 3)
                          {
@@ -462,9 +455,19 @@ int main(int argc, char **argv)
                                              }
                                          }
                                         */
-
                     fclose(output_file);
-                    
+                    FILE *copy = fopen(output_path, "rb");
+                    FILE *paste = fopen(output_path2, "wb");
+                    int ch;
+                    while (1)
+                    {
+                        ch = fgetc(copy);
+                        if (ch == EOF)
+                            break;
+                        fputc(ch, paste);
+                    }
+                    fclose(paste);
+                    fclose(copy);
                 }
             }
         }
