@@ -1,0 +1,8 @@
+runscan ../../P7/test_disk_images/test_0/image-02 output0
+runscan ../../P7/test_disk_images/test_1/01.img output1
+runscan ../../P7/test_disk_images/test_2/02.img Output2
+runscan ../../P7/test_disk_images/test_3/03.img output3
+runscan ../../P7/test_disk_images/test_4/04.img output4
+runscan ../../P7/test_disk_images/test_5/05.img output5
+runscan ../../P7/test_disk_images/test_6/06.img output6
+runscan ../../P7/test_disk_images/test_7/07.img output7

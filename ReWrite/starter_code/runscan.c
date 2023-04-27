@@ -13,20 +13,20 @@
 
 #define INDIRECT_BLOCK_COUNT (block_size / sizeof(uint32_t)) // 256
 
-struct ext2_super_block super;
+struct ext2_super_block super_block;
 struct ext2_group_desc group;
 
 void copyFiles(char *output_path, char *output_path2)
 {
     FILE *copy = fopen(output_path, "rb");
     FILE *paste = fopen(output_path2, "wb");
-    int ch;
+    int cp;
     while (1)
     {
-        ch = fgetc(copy);
-        if (ch == EOF)
+        cp = fgetc(copy);
+        if (cp == EOF)
             break;
-        fputc(ch, paste);
+        fputc(cp, paste);
     }
     fclose(paste);
     fclose(copy);
@@ -34,20 +34,20 @@ void copyFiles(char *output_path, char *output_path2)
 
 void makeDetails(char *details, struct ext2_inode *inode)
 {
-    FILE *detail_file = fopen(details, "wb");
-    fprintf(detail_file, "%u\n%lu\n%u", inode->i_links_count, (unsigned long)inode->i_size, inode->i_uid);
-    fclose(detail_file);
+    FILE *detail_file_txt = fopen(details, "wb");
+    fprintf(detail_file_txt, "%u\n%lu\n%u", inode->i_links_count, (unsigned long)inode->i_size, inode->i_uid);
+    fclose(detail_file_txt);
 }
 
-void read_indirect_blocks(int fd, uint32_t block_number, char *buffer, FILE *output_file, uint32_t block_size, uint32_t *bytes_left, int indirect_level)
+void read_indirect_blocks(int fd, uint32_t block_num, char *buffer, FILE *output_file, uint32_t block_size, uint32_t *bytes_left, int indirect_level)
 {
-    if (indirect_level < 1 || indirect_level > 3 || block_number == 0 || *bytes_left == 0)
+    if (indirect_level < 1 || indirect_level > 3 || block_num == 0 || *bytes_left == 0)
     {
         return;
     }
 
     uint32_t indirect_block[INDIRECT_BLOCK_COUNT];
-    off_t offset = BLOCK_OFFSET(block_number);
+    off_t offset = BLOCK_OFFSET(block_num);
     lseek(fd, offset, SEEK_SET);
     read(fd, indirect_block, block_size);
 
@@ -60,12 +60,12 @@ void read_indirect_blocks(int fd, uint32_t block_number, char *buffer, FILE *out
 
         if (indirect_level == 1)
         {
-            uint32_t bytes_to_read = (*bytes_left < block_size) ? *bytes_left : block_size;
+            uint32_t bytes_read = (*bytes_left < block_size) ? *bytes_left : block_size;
             offset = BLOCK_OFFSET(indirect_block[i]);
             lseek(fd, offset, SEEK_SET);
-            read(fd, buffer, bytes_to_read);
-            fwrite(buffer, 1, bytes_to_read, output_file);
-            *bytes_left -= bytes_to_read;
+            read(fd, buffer, bytes_read);
+            fwrite(buffer, 1, bytes_read, output_file);
+            *bytes_left -= bytes_read;
         }
         else
         {
@@ -74,9 +74,9 @@ void read_indirect_blocks(int fd, uint32_t block_number, char *buffer, FILE *out
     }
 }
 
-int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_desc *group, uint32_t inode_number, char *file_name)
+int find_jpg_name(int fd, struct ext2_super_block *super, struct ext2_group_desc *group, uint32_t inode_num, char *file_name)
 {
-    uint32_t i_p_g = super->s_inodes_per_group;
+    uint32_t ipg = super->s_inodes_per_group;   
     uint32_t block_size = 1024;
     struct ext2_inode dir_inode;
     int found = 0;
@@ -85,11 +85,11 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
 
     for (uint32_t j = 0; j < num_groups && !found; j++)
     {
-        off_t inode_table_offset = locate_inode_table(j, group);
-        for (uint32_t i = 1; i < i_p_g && !found; i++)
+        off_t inode_table_off = locate_inode_table(j, group);
+        for (uint32_t i = 1; i < ipg && !found; i++)
         {
 
-            read_inode(fd, inode_table_offset, i, &dir_inode, super->s_inode_size);
+            read_inode(fd, inode_table_off, i, &dir_inode, super->s_inode_size);
             if (S_ISDIR(dir_inode.i_mode))
             {
                 char buffer[block_size];
@@ -100,7 +100,7 @@ int find_file_name(int fd, struct ext2_super_block *super, struct ext2_group_des
                 struct ext2_dir_entry_2 *entry = (struct ext2_dir_entry_2 *)buffer;
                 while ((char *)entry < buffer + block_size && !found)
                 {
-                    if (entry->inode == inode_number)
+                    if (entry->inode == inode_num)
                     {
                         strncpy(file_name, entry->name, entry->name_len);
                         file_name[entry->name_len] = '\0';
@@ -151,20 +151,20 @@ void save_jpg(int fd, struct ext2_inode *inode, uint32_t current_inode_number, c
         }
 
         uint32_t bytes_left = inode->i_size;
-        uint32_t bytes_to_read = block_size;
+        uint32_t bytes_read = block_size;
 
         for (uint32_t block_idx = 0; block_idx < EXT2_NDIR_BLOCKS && bytes_left > 0; block_idx++)
         {
             if (bytes_left < block_size)
             {
-                bytes_to_read = bytes_left;
+                bytes_read = bytes_left;
             }
 
             off_t offset = BLOCK_OFFSET(inode->i_block[block_idx]);
             lseek(fd, offset, SEEK_SET);
-            read(fd, buffer, bytes_to_read);
-            fwrite(buffer, 1, bytes_to_read, output_file);
-            bytes_left -= bytes_to_read;
+            read(fd, buffer, bytes_read);
+            fwrite(buffer, 1, bytes_read, output_file);
+            bytes_left -= bytes_read;
         }
 
         for (int indirect_level = 1; indirect_level <= 3 && bytes_left > 0; indirect_level++)
@@ -178,7 +178,7 @@ void save_jpg(int fd, struct ext2_inode *inode, uint32_t current_inode_number, c
 
         fclose(output_file);
         char file_name[EXT2_NAME_LEN];
-        find_file_name(fd, &super, &group, current_inode_number, file_name);
+        find_jpg_name(fd, &super_block, &group, current_inode_number, file_name);
         char output_path2[256];
         snprintf(output_path2, sizeof(output_path2), "%s/%s", output_dir, file_name);
 
@@ -190,24 +190,24 @@ void save_jpg(int fd, struct ext2_inode *inode, uint32_t current_inode_number, c
     }
 }
 
-void process_inodes(int fd, const char *output_dir)
+void process_inodes(int fd, const char *output_directory)
 {
     for (uint32_t group_idx = 0; group_idx < num_groups; group_idx++)
     {
-        read_super_block(fd, group_idx, &super);
+        read_super_block(fd, group_idx, &super_block);
         read_group_desc(fd, group_idx, &group);
-        uint32_t starting_inode_number = group_idx * super.s_inodes_per_group;
+        uint32_t starting_inode_number = group_idx * super_block.s_inodes_per_group;
 
-        for (uint32_t i = 1; i < super.s_inodes_per_group; i++)
+        for (uint32_t i = 1; i < super_block.s_inodes_per_group; i++)
         {
             uint32_t current_inode_number = starting_inode_number + i;
             off_t inode_table_offset = locate_inode_table(group_idx, &group);
             struct ext2_inode inode;
-            read_inode(fd, inode_table_offset, i, &inode, super.s_inode_size);
+            read_inode(fd, inode_table_offset, i, &inode, super_block.s_inode_size);
 
             if (S_ISREG(inode.i_mode))
             {
-                save_jpg(fd, &inode, current_inode_number, output_dir);
+                save_jpg(fd, &inode, current_inode_number, output_directory);
             }
         }
     }
@@ -239,7 +239,7 @@ int main(int argc, char **argv)
     }
 
     ext2_read_init(fd);
-    read_super_block(fd, 0, &super);
+    read_super_block(fd, 0, &super_block);
 
     process_inodes(fd, argv[2]);
 
