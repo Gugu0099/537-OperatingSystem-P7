@@ -16,6 +16,29 @@
 struct ext2_super_block super;
 struct ext2_group_desc group;
 
+void copyFiles(char *output_path, char *output_path2)
+{
+    FILE *copy = fopen(output_path, "rb");
+    FILE *paste = fopen(output_path2, "wb");
+    int ch;
+    while (1)
+    {
+        ch = fgetc(copy);
+        if (ch == EOF)
+            break;
+        fputc(ch, paste);
+    }
+    fclose(paste);
+    fclose(copy);
+}
+
+void makeDetails(char *details, struct ext2_inode *inode)
+{
+    FILE *detail_file = fopen(details, "wb");
+    fprintf(detail_file, "%u\n%lu\n%u", inode->i_links_count, (unsigned long)inode->i_size, inode->i_uid);
+    fclose(detail_file);
+}
+
 void read_indirect_blocks(int fd, uint32_t block_number, char *buffer, FILE *output_file, uint32_t block_size, uint32_t *bytes_left, int indirect_level)
 {
     if (indirect_level < 1 || indirect_level > 3 || block_number == 0 || *bytes_left == 0)
@@ -158,24 +181,12 @@ void save_jpg(int fd, struct ext2_inode *inode, uint32_t current_inode_number, c
         find_file_name(fd, &super, &group, current_inode_number, file_name);
         char output_path2[256];
         snprintf(output_path2, sizeof(output_path2), "%s/%s", output_dir, file_name);
-        FILE *copy = fopen(output_path, "rb");
-        FILE *paste = fopen(output_path2, "wb");
-        int ch;
-        while (1)
-        {
-            ch = fgetc(copy);
-            if (ch == EOF)
-                break;
-            fputc(ch, paste);
-        }
-        fclose(paste);
-        fclose(copy);
+
+        copyFiles(output_path, output_path2); // This method just copy contents to file name file from inode file
 
         char details[256];
         snprintf(details, sizeof(details), "%s/file-%u-details.txt", output_dir, current_inode_number);
-        FILE *detail_file = fopen(details, "wb");
-        fprintf(detail_file, "%u\n%lu\n%u", inode->i_links_count, (unsigned long)inode->i_size, inode->i_uid);
-        fclose(detail_file);
+        makeDetails(details, inode); //This method makes details file
     }
 }
 
